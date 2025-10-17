@@ -1,0 +1,2 @@
+Produto	Quantidade	Unidade	Data			Responsável
+SivantOO	6000	ml	2025-10-08 18:26:29	

@@ -5,7 +5,7 @@ const estoqueRoutes = require('./routes/estoqueRoutes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middleware - adicione ANTES das rotas!
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));

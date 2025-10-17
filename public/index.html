@@ -2,66 +2,409 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Painel de Estoque - Fazenda Dami</title>
+  <title>Estoque - Fazenda Dami</title>
+  <link rel="icon" type="image/png" href="img/dami.png">
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* Permite rolar o select da subcategoria se tiver muitas opções */
+    #subcategoria-produto {
+      max-height: 150px;
+      overflow-y: auto;
+      display: block;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
+    
+    <div class="logo-area">
+      <img src="img/dami.png" alt="Logo">
+      <span class="empresa-nome">Estoque Caldeira Dami</span>
+    </div>
+
     <h1>Painel de Estoque</h1>
     <div class="menu">
       <button onclick="mostrarAba('entrada')">Entrada</button>
       <button onclick="mostrarAba('saida')">Saída</button>
-      <button onclick="mostrarAba('quantidades')">Quantidades Totais</button>
+      <button onclick="mostrarAba('entrada-existente')">Atualizar</button>
+      <button onclick="mostrarAba('quantidades')">Estoque</button>
+    </div>
+
+    <div id="entrada-existente" class="aba" style="display:none;">
+      <h2>Adicionar Quantidade a Produto Existente</h2>
+      <form id="form-entrada-existente">
+        <input type="number" id="id-entrada" placeholder="ID do produto" required>
+        <input type="number" id="quantidade-entrada" placeholder="Quantidade a adicionar" required>
+        <button type="submit">Entrada existente</button>
+      </form>
     </div>
 
     <div id="entrada" class="aba">
-      <h2>Entrada de Produto</h2>
-      <form>
-        <input type="text" placeholder="Nome do produto" required>
-        <input type="number" placeholder="Quantidade" required>
-        <input type="number" step="0.01" placeholder="Preço" required>
-        <button type="submit">Adicionar</button>
+      <h2>Adicionar Produto</h2>
+      <form id="form-cadastro-produto">
+        <input type="text" id="nome-produto" placeholder="Nome do produto" required>
+        <input type="number" id="quantidade-produto" placeholder="Quantidade" required>
+        <select id="unidade-produto" required>
+          <option value="">Selecione a unidade</option>
+          <option value="g">Gramas (g)</option>
+          <option value="kg">Quilos (kg)</option>
+          <option value="ml">Mililitros (ml)</option>
+          <option value="L">Litros (L)</option>
+          <option value="unidade">Unidade</option>
+        </select>
+        <select id="categoria-produto" required>
+          <option value="">Selecione a categoria</option>
+          <option value="Defensivos Agrícolas">Defensivos Agrícolas</option>
+          <option value="Fertilizantes">Fertilizantes</option>
+          <option value="Estimulantes e Bioestimulantes">Estimulantes e Bioestimulantes</option>
+          <option value="Corretivos de Solo e pH">Corretivos de Solo e pH</option>
+          <option value="Proteção e Reforço Fisiológico">Proteção e Reforço Fisiológico</option>
+          <option value="Outros Complementares">Outros Complementares</option>
+        </select>
+        <select id="subcategoria-produto" required>
+          <option value="">Selecione a subcategoria</option>
+        </select>
+        <input type="number" id="quantidade-minima" placeholder="Qtd. mínima p/ alerta" required>
+        <button type="submit">Cadastrar Produto</button>
       </form>
     </div>
 
     <div id="saida" class="aba" style="display:none;">
       <h2>Saída de Produto</h2>
-      <form>
-        <input type="text" placeholder="Nome do produto" required>
-        <input type="number" placeholder="Quantidade" required>
-        <button type="submit">Registrar Saída</button>
+      <form id="form-saida">
+          <input type="number" id="id-saida" placeholder="ID do produto" required>
+          <input type="number" id="quantidade-saida" placeholder="Quantidade a retirar" required>
+          <button type="submit" class="botao-acao remover">Dar Saída</button>
       </form>
     </div>
 
     <div id="quantidades" class="aba" style="display:none;">
-      <h2>Quantidades Totais</h2>
-      <input type="text" id="pesquisa" placeholder="Pesquisar produto...">
+    <h2 id="titulo-quantidades">Estoque Total</h2>
+  
+  <!-- Barra de pesquisa e filtros -->
+      <div class="relatorio-barra">
+        <div class="pesquisa-container">
+          <input type="text" id="pesquisa" placeholder="Pesquisar produto...">
+          <button id="btn-pesquisar" class="botao-acao pesquisar">Pesquisar</button>
+        </div>
+        <div class="filtros-relatorio">
+          <input type="date" id="data-inicio">
+          <label for="data-inicio">:De</label>
+          <input type="date" id="data-fim">
+          <label for="data-fim">:Até</label>
+          <button id="btn-exportar-relatorio">Exportar Relatório (TXT)</button>
+          <button id="btn-exportar-pdf">Exportar Relatório (PDF)</button>
+        </div>
+      </div>
+      
+      <!-- Sugestões de pesquisa -->
+      <div id="sugestoes" class="sugestoes"></div>
+      
+      <!-- Tabela de produtos -->
       <table>
         <thead>
           <tr>
-            <th>Produto</th>
-            <th>Quantidade</th>
-            <th>Preço</th>
+            <th>ID</th>
+            <th>NOME</th>
+            <th>QTD</th>
+            <th>UN</th>
+            <th>CATEGORIA</th>
+            <th>SUBCATEGORIA</th>
+            <th>AÇÕES</th>
           </tr>
         </thead>
         <tbody id="tabela-produtos">
           <!-- Os produtos serão listados aqui -->
         </tbody>
       </table>
-    </div>
   </div>
+
   <script>
+    let produtosEstoque = [];
+
+    document.getElementById('btn-exportar-relatorio').addEventListener('click', function() {
+      const dataInicio = document.getElementById('data-inicio').value;
+      const dataFim = document.getElementById('data-fim').value;
+      window.open(`/api/estoque/relatorio-saida-txt?dataInicio=${dataInicio}&dataFim=${dataFim}`);
+    });
+
+    document.getElementById('btn-exportar-pdf').addEventListener('click', function() {
+      const dataInicio = document.getElementById('data-inicio').value;
+      const dataFim = document.getElementById('data-fim').value;
+      window.open(`/api/estoque/relatorio-saida-pdf?dataInicio=${dataInicio}&dataFim=${dataFim}`);
+    });
+    // Todas as subcategorias conforme sua lista!
+    const subcategorias = {
+      "Defensivos Agrícolas": [
+        "Inseticidas",
+        "Fungicidas",
+        "Bactericidas",
+        "Herbicidas"
+      ],
+      "Fertilizantes": [
+        "Fertilizantes foliares",
+        "Fertilizantes de solo",
+        "Adubos orgânicos",
+        "Biofertilizantes"
+      ],
+      "Estimulantes e Bioestimulantes": [
+        "Enraizadores",
+        "Bioestimulantes foliares"
+      ],
+      "Corretivos de Solo e pH": [
+        "Corretivos de solo",
+        "Corretivos de pH"
+      ],
+      "Proteção e Reforço Fisiológico": [
+        "Protetores foliares",
+        "Indutores de resistência"
+      ],
+      "Outros Complementares": [
+        "Polinizadores",
+        "Aditivos e espalhantes adesivos",
+        "Reguladores de crescimento"
+      ]
+    };
+
+    // Preenche subcategoria ao mudar categoria
+    document.getElementById('categoria-produto').addEventListener('change', function() {
+      const cat = this.value;
+      const subcatSelect = document.getElementById('subcategoria-produto');
+      subcatSelect.innerHTML = '<option value="">Selecione a subcategoria</option>';
+      if(subcategorias[cat]) {
+        subcategorias[cat].forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub;
+          opt.textContent = sub;
+          subcatSelect.appendChild(opt);
+        });
+      }
+      // Se não tem sub, deixa só a opção principal
+    });
+
     function mostrarAba(aba) {
       document.querySelectorAll('.aba').forEach(el => el.style.display = 'none');
       document.getElementById(aba).style.display = 'block';
+      if (aba === 'quantidades') {
+        document.getElementById('titulo-quantidades').textContent = 'Estoque Total';
+        carregarProdutos();
+      }
     }
-    // Exemplo de filtro de pesquisa (apenas visual, sem integração)
+
+    function carregarProdutos() {
+      fetch('/api/estoque')
+        .then(res => res.json())
+        .then(produtos => {
+          produtosEstoque = produtos;
+          atualizarTabela(produtos);
+        });
+    }
+
+    function atualizarTabela(produtos) {
+      const tabela = document.getElementById('tabela-produtos');
+      tabela.innerHTML = '';
+      produtos.forEach(prod => {
+        // Garantir valores padrão para evitar undefined
+        const quantidade_total = prod.quantidade_total ?? '';
+        const quantidade_minima = prod.quantidade_minima ?? '';
+        const potes_fechados = prod.potes_fechados ?? '';
+        const unidade = prod.unidade ?? '';
+        const categoria = prod.categoria ?? '';
+        const subcategoria = prod.subcategoria ?? '';
+        const nome = prod.nome ?? '';
+
+        // Lógica de alerta
+        let alerta = false;
+        let alertaMsg = '';
+        if (quantidade_minima > 0) {
+          if (quantidade_total <= quantidade_minima) {
+            alerta = true;
+            alertaMsg = '<span style="color:red;font-weight:bold;">&#9888; Alerta mínimo!</span>';
+          }
+        } else {
+          alertaMsg = '<span style="color:orange;">&#9888; Sem mínimo definido</span>';
+        }
+
+        // Cria linha
+        const tr = document.createElement('tr');
+        if (alerta) tr.className = 'alerta'; // Para estilizar via CSS se quiser
+
+        tr.innerHTML = `
+          <td>${prod.id}</td>
+          <td>${nome}</td>
+          <td>${quantidade_total} ${alertaMsg}</td>
+          <td>${unidade}</td>
+          <td>${categoria}</td>
+          <td>${subcategoria}</td>
+          <td>
+            <button class="botao-editar" 
+              onclick="editarProduto(${prod.id}, '${nome.replace(/'/g, "\\'")}', ${quantidade_total}, '${unidade}', '${categoria}', '${subcategoria}', ${quantidade_minima}, ${potes_fechados})">
+              ✏️ Editar
+            </button>
+          </td>
+        `;
+        tabela.appendChild(tr);
+      });
+    }
+    function editarProduto(id, nomeAtual, quantidadeAtual, unidadeAtual, categoriaAtual, subcategoriaAtual, quantidadeMinimaAtual, potesFechadosAtual) {
+      const novoNome = prompt("Novo nome do produto:", nomeAtual);
+      if (novoNome === null) return;
+
+      const novaQuantidade = prompt("Nova quantidade total:", quantidadeAtual);
+      if (novaQuantidade === null) return;
+
+      const novaUnidade = prompt("Unidade:", unidadeAtual);
+      if (novaUnidade === null) return;
+
+      const novaCategoria = prompt("Categoria:", categoriaAtual);
+      if (novaCategoria === null) return;
+
+      const novaSubcategoria = prompt("Subcategoria:", subcategoriaAtual);
+      if (novaSubcategoria === null) return;
+
+      const novaQuantidadeMinima = prompt("Quantidade mínima:", quantidadeMinimaAtual);
+      if (novaQuantidadeMinima === null) return;
+
+      const novosPotesFechados = prompt("Potes/Sacos fechados:", potesFechadosAtual);
+      if (novosPotesFechados === null) return;
+
+      fetch(`/api/estoque/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: novoNome,
+          quantidade_total: parseFloat(novaQuantidade),
+          unidade: novaUnidade,
+          categoria: novaCategoria,
+          subcategoria: novaSubcategoria,
+          quantidade_minima: parseFloat(novaQuantidadeMinima),
+          potes_fechados: parseInt(novosPotesFechados)
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message || 'Produto editado!');
+          carregarProdutos();
+        })
+        .catch(err => alert('Erro ao editar produto: ' + err));
+    }
+
+
+    // Buscar histórico
+      fetch('/api/estoque/historico-saida?produto_id=1&dataInicio=2025-10-01&dataFim=2025-10-07')
+        .then(res => res.json())
+        .then(historico => {
+          // Monta tabela na tela
+          // Exemplo: mostrar produto, quantidade, unidade, data, responsável
+        });
+
+    // Autocomplete de pesquisa
     document.getElementById('pesquisa').addEventListener('input', function() {
       const termo = this.value.toLowerCase();
-      document.querySelectorAll('#tabela-produtos tr').forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(termo) ? '' : 'none';
-      });
+      const sugestoes = produtosEstoque
+        .filter(prod => prod.nome.toLowerCase().startsWith(termo) && termo.length > 0)
+        .map(prod => prod.nome);
+
+      const divSugestoes = document.getElementById('sugestoes');
+      divSugestoes.innerHTML = '';
+      if (sugestoes.length) {
+        divSugestoes.style.display = 'block';
+        sugestoes.forEach(nome => {
+          const opt = document.createElement('div');
+          opt.textContent = nome;
+          opt.className = "item-sugestao";
+          opt.onclick = () => {
+            document.getElementById('pesquisa').value = nome;
+            divSugestoes.style.display = 'none';
+          };
+          divSugestoes.appendChild(opt);
+        });
+      } else {
+        divSugestoes.style.display = 'none';
+      }
     });
+
+    // Botão pesquisar filtra produtos
+    document.getElementById('btn-pesquisar').addEventListener('click', function(e) {
+      e.preventDefault();
+      const termo = document.getElementById('pesquisa').value.toLowerCase();
+      const filtrados = produtosEstoque.filter(prod => prod.nome.toLowerCase().includes(termo));
+      atualizarTabela(filtrados);
+    });
+
+    // Adicionar produto
+    document.getElementById('form-cadastro-produto').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const nome = document.getElementById('nome-produto').value.trim();
+      const quantidade = document.getElementById('quantidade-produto').value;
+      const unidade = document.getElementById('unidade-produto').value;
+      const categoria = document.getElementById('categoria-produto').value;
+      const subcategoria = document.getElementById('subcategoria-produto').value;
+      const quantidadeMinima = document.getElementById('quantidade-minima').value;
+
+      fetch('/api/estoque', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: nome,
+          quantidade_total: Number(quantidade),
+          unidade: unidade,
+          categoria: categoria,
+          subcategoria: subcategoria,
+          quantidade_minima: Number(quantidadeMinima)
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message || 'Produto adicionado!');
+        document.getElementById('form-cadastro-produto').reset();
+        // Atualiza a tabela logo após cadastrar!
+        mostrarAba('quantidades');
+      })
+      .catch(err => alert('Erro ao adicionar produto: ' + err));
+    });
+
+    // Dar saída de produto quantidade
+    document.getElementById('form-saida').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const id = Number(document.getElementById('id-saida').value);
+        const quantidade = Number(document.getElementById('quantidade-saida').value);
+
+        fetch('/api/estoque/saida', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, quantidade })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message || 'Saída registrada!');
+            document.getElementById('form-saida').reset();
+            carregarProdutos();
+        })
+        .catch(err => alert('Erro ao registrar saída: ' + err));
+    });
+
+    document.getElementById('form-entrada-existente').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const id = Number(document.getElementById('id-entrada').value);
+      const quantidade = Number(document.getElementById('quantidade-entrada').value);
+
+      fetch('/api/estoque/entrada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, quantidade })
+      })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message || 'Entrada registrada!');
+        document.getElementById('form-entrada-existente').reset();
+        carregarProdutos();
+      })
+      .catch(err => alert('Erro ao registrar entrada: ' + err));
+    });
+
+    // Inicializa na aba de entrada
+    mostrarAba('entrada');
   </script>
 </body>
 </html>
